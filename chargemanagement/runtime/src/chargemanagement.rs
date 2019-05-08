@@ -18,15 +18,19 @@ decl_event!(
     pub enum Event<T>
     where
         <T as system::Trait>::AccountId,
-        <T as system::Trait>::Hash
+        <T as system::Trait>::Hash,
+        <T as balances::Trait>::Balance,
     {
+        // 生成イベント
         Created(AccountId, Hash),
+        // 価格設定イベント
+        PriceSet(AccountId, Hash, Balance),
     }
 );
 
 decl_storage! {
     trait Store for Module<T: Trait> as ChargeManagementStorage {
-        Cars get(cars): map T::Hash => Car<T::Hash, T::Balance>;
+        Cars get(car): map T::Hash => Car<T::Hash, T::Balance>;
         CarOwner get(owner_of): map T::Hash => Option<T::AccountId>;
 
         // 全体に対する情報
@@ -70,6 +74,24 @@ decl_module! {
 
             // ストレージ変数を更新
             Self::mint(sender, random_hash, new_car)?;
+
+            Ok(())
+        }
+
+        fn set_price(origin, car_id: T::Hash, new_price: T::Balance) -> Result {
+            let sender = ensure_signed(origin)?;
+
+            ensure!(<Cars<T>>::exists(car_id), "This car does not exist");
+
+            let owner = Self::owner_of(car_id).ok_or("No owner for this Car")?;
+            ensure!(owner == sender, "You do not own this car");
+
+            let mut car = Self::car(car_id);
+            car.price = new_price;
+
+            <Cars<T>>::insert(car_id, car);
+
+            Self::deposit_event(RawEvent::PriceSet(sender, car_id, new_price));
 
             Ok(())
         }
