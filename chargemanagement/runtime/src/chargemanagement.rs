@@ -1,11 +1,11 @@
-use support::{decl_storage, decl_module, StorageValue, dispatch::Result};
+use support::{decl_storage, decl_module, StorageMap, StorageValue, dispatch::Result};
 use system::ensure_signed;
 
 pub trait Trait: system::Trait {}
 
 decl_storage! {
     trait Store for Module<T: Trait> as ChargeManagementStorage {
-          Value: u64;
+          Value: map T::AccountId => u64;
   }
 }
 
@@ -14,7 +14,7 @@ decl_module! {
         fn set_value(origin, value: u64) -> Result {
             let sender = ensure_signed(origin)?;
 
-            <Value<T>>::put(value);
+            <Value<T>>::insert(sender, value);
 
             Ok(())
         }
