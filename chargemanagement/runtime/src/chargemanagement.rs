@@ -36,7 +36,10 @@ decl_storage! {
         // O(1)で操作するためにインデックスを覚えておくようにする
         AllCarsIndex: map T::Hash => u64;
 
-        OwnedCar get(car_ofowner): map T::AccountId => T::Hash;
+        // 複数の車が所持できるような構造
+        OwnedCarsArray get(car_of_owner_by_index): map (T::AccountId, u64) => T::Hash;
+        OwnedCarsCount get(owned_car_count): map T::AccountId => u64;
+        OwnedCarsIndex: map T::Hash => u64;
 
         Nonce:u64;
   }
@@ -51,9 +54,14 @@ decl_module! {
         fn create_car(origin) -> Result {
             let sender = ensure_signed(origin)?;
 
-            let all_cars_count = Self::all_cars_count();
+            // 現在の車の所持数を取得
+            let owned_car_count = Self::owned_car_count(&sender);
+            // 検証しつつあたらしい値を生成
+            let new_owned_car_count = owned_car_count.checked_add(1).ok_or("Overflow adding a new car to account balance")?;
 
-            // 追加時の検証
+            // 現在のすべての車の数を取得
+            let all_cars_count = Self::all_cars_count();
+            // 検証しつつあたらしい値を生成
             let new_all_cars_count = all_cars_count.checked_add(1).ok_or("Overflow adding a new car to total supply")?;
 
             // 現在のnonceの取得、IDのハッシュ値のランダム生成
@@ -67,6 +75,7 @@ decl_module! {
             // 実際に構造体を生成
             let new_car = Car {
                 id: random_hash,
+                // とりあえず0に設定している
                 price: <T::Balance as As<u64>>::sa(0),
             };
 
@@ -78,7 +87,9 @@ decl_module! {
             <AllCarsCount<T>>::put(new_all_cars_count);
             <AllCarsIndex<T>>::insert(random_hash, all_cars_count);
 
-            <OwnedCar<T>>::insert(&sender, random_hash);
+            <OwnedCarsArray<T>>::insert((sender.clone(), owned_car_count), random_hash);
+            <OwnedCarsCount<T>>::insert(&sender, new_owned_car_count);
+            <OwnedCarsIndex<T>>::insert(random_hash, owned_car_count);
 
             <Nonce<T>>::mutate(|n| *n += 1);
 
