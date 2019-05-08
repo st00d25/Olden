@@ -1,4 +1,5 @@
-use support::{decl_storage, decl_module, StorageValue};
+use support::{decl_storage, decl_module, StorageValue, dispatch::Result};
+use system::ensure_signed;
 
 pub trait Trait: system::Trait {}
 
@@ -10,6 +11,12 @@ decl_storage! {
 
 decl_module! {
     pub struct Module<T: Trait> for enum Call where origin: T::Origin {
-        // Declare public functions here
+        fn set_value(origin, value: u64) -> Result {
+            let sender = ensure_signed(origin)?;
+
+            <Value<T>>::put(value);
+
+            Ok(())
+        }
     }
 }
