@@ -25,6 +25,7 @@ decl_event!(
         Created(AccountId, Hash),
         // 価格設定イベント
         PriceSet(AccountId, Hash, Balance),
+        Transferred(AccountId, AccountId, Hash),
     }
 );
 
@@ -95,12 +96,23 @@ decl_module! {
 
             Ok(())
         }
+
+        fn transfer(origin, to: T::AccountId, car_id: T::Hash) -> Result {
+            let sender = ensure_signed(origin)?;
+
+            let owner = Self::owner_of(car_id).ok_or("No owner for this car")?;
+            ensure!(owner == sender, "You do not own this car");
+
+            Self::transfer_from(sender, to, car_id)?;
+
+            Ok(())
+        }
     }
 }
 
 // プライベート関数
 impl<T: Trait> Module<T> {
-    // Carオブジェクトから新しい作成を作成し、すべてのストレージ変数を更新する
+    // Carオブジェクトから新しい車を作成し、すべてのストレージ変数を更新する
     fn mint(to: T::AccountId, car_id: T::Hash, new_car: Car<T::Hash, T::Balance>) -> Result {
         // IDがすでに存在するかどうかの検証
         ensure!(!<CarOwner<T>>::exists(car_id), "Car already exists");
@@ -128,6 +140,43 @@ impl<T: Trait> Module<T> {
         <OwnedCarsIndex<T>>::insert(car_id, owned_car_count);
 
         Self::deposit_event(RawEvent::Created(to, car_id));
+
+        Ok(())
+    }
+
+    // 車を送る
+    fn transfer_from(from: T::AccountId, to: T::AccountId, car_id: T::Hash) -> Result {
+        let owner = Self::owner_of(car_id).ok_or("No owner for this car")?;
+
+        ensure!(owner == from, "'from' account does not own this car");
+
+        let owned_car_count_from = Self::owned_car_count(&from);
+        let owned_car_count_to = Self::owned_car_count(&to);
+
+        let new_owned_car_count_to = owned_car_count_to.checked_add(1)
+            .ok_or("Transfer causes overflow of 'to' car balance")?;
+
+        let new_owned_car_count_from = owned_car_count_from.checked_sub(1)
+            .ok_or("Transfer causes underflow of 'from' car balance")?;
+
+        // "Swap and pop"
+        let car_index = <OwnedCarsIndex<T>>::get(car_id);
+        if car_index != new_owned_car_count_from {
+            let last_car_id = <OwnedCarsArray<T>>::get((from.clone(), new_owned_car_count_from));
+            <OwnedCarsArray<T>>::insert((from.clone(), car_index), last_car_id);
+            <OwnedCarsIndex<T>>::insert(last_car_id, car_index);
+        }
+
+        <CarOwner<T>>::insert(&car_id, &to);
+        <OwnedCarsIndex<T>>::insert(car_id, owned_car_count_to);
+
+        <OwnedCarsArray<T>>::remove((from.clone(), new_owned_car_count_from));
+        <OwnedCarsArray<T>>::insert((to.clone(), owned_car_count_to), car_id);
+
+        <OwnedCarsCount<T>>::insert(&from, new_owned_car_count_from);
+        <OwnedCarsCount<T>>::insert(&to, new_owned_car_count_to);
+
+        Self::deposit_event(RawEvent::Transferred(from, to, car_id));
 
         Ok(())
     }
