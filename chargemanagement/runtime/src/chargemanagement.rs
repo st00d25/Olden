@@ -1,10 +1,10 @@
-use support::{decl_storage, decl_module};
+use support::{decl_storage, decl_module, StorageValue};
 
 pub trait Trait: system::Trait {}
 
 decl_storage! {
     trait Store for Module<T: Trait> as ChargeManagementStorage {
-          // Declare storage and getter functions here
+          Value: u64;
   }
 }
 
