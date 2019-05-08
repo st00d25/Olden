@@ -189,7 +189,9 @@ impl sudo::Trait for Runtime {
 	type Proposal = Call;
 }
 
-impl chargemanagement::Trait for Runtime{}
+impl chargemanagement::Trait for Runtime{
+	type Event = Event;
+}
 
 /// Used for the module template in `./template.rs`
 impl template::Trait for Runtime {
@@ -211,7 +213,7 @@ construct_runtime!(
 		Sudo: sudo,
 		// Used for the module template in `./template.rs`
 		TemplateModule: template::{Module, Call, Storage, Event<T>},
-		ChargeManagement: chargemanagement::{Module, Call, Storage},
+		ChargeManagement: chargemanagement::{Module, Call, Storage, Event<T>},
 	}
 );
 
