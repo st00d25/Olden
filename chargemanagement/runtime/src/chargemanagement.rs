@@ -1,7 +1,8 @@
-use support::{decl_storage, decl_module, StorageValue, StorageMap, dispatch::Result, ensure, decl_event};
+use support::{decl_storage, decl_module, StorageValue, StorageMap, dispatch::Result, ensure, decl_event, traits::Currency};
 use system::ensure_signed;
-use runtime_primitives::traits::{As, Hash};
+use runtime_primitives::traits::{As, Hash, Zero};
 use parity_codec::{Encode, Decode};
+use rstd::cmp;
 
 #[derive(Encode, Decode, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "std", derive(Debug))]
@@ -26,6 +27,7 @@ decl_event!(
         // 価格設定イベント
         PriceSet(AccountId, Hash, Balance),
         Transferred(AccountId, AccountId, Hash),
+        Bought(AccountId, AccountId, Hash, Balance),
     }
 );
 
@@ -104,6 +106,37 @@ decl_module! {
             ensure!(owner == sender, "You do not own this car");
 
             Self::transfer_from(sender, to, car_id)?;
+
+            Ok(())
+        }
+
+        fn buy_car(origin, car_id: T::Hash) -> Result {
+            let sender = ensure_signed(origin)?;
+
+            ensure!(<Cars<T>>::exists(car_id), "This car does not exist");
+
+            let owner = Self::owner_of(car_id).ok_or("No owner for this car")?;
+            ensure!(owner != sender, "You can't buy your own car");
+
+            let mut car = Self::car(car_id);
+
+            let car_price = car.price;
+            ensure!(!car_price.is_zero(), "The car you want to buy is not for sale");
+
+            <balances::Module<T> as Currency<_>>::transfer(&sender, &owner, car_price)?;
+
+            Self::transfer_from(owner.clone(), sender.clone(), car_id)
+                .expect("`owner` is shown to own the car; \
+                `owner` must have greater than 0 car, so transfer cannot cause underflow; \
+                `all_car_count` shares the same type as `owned_car_count` \
+                and minting ensure there won't ever be more than `max()` cars, \
+                which means transfer cannot cause an overflow; \
+                qed");
+
+            car.price = <T::Balance as As<u64>>::sa(0);
+            <Cars<T>>::insert(car_id, car);
+
+            Self::deposit_event(RawEvent::Bought(sender, owner, car_id, car_price));
 
             Ok(())
         }
