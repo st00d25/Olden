@@ -66,7 +66,7 @@ decl_module! {
 
             // 実際に構造体を生成
             let new_car = Car {
-                id: <T as system::Trait>::Hashing::hash_of(&0),
+                id: random_hash,
                 price: <T::Balance as As<u64>>::sa(0),
             };
 
