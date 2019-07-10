@@ -9,7 +9,16 @@ use rstd::cmp;
 pub struct Car<Hash, Balance> {
     id: Hash,
     price: Balance,
+    stored_fee: Balance,
 }
+
+// {
+//   "Car": {
+//     "id": "Hash",
+//     "price": "Balance",
+//     "stored_fee": "Balance"
+//   }
+// }
 
 pub trait Trait: balances::Trait {
     type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
@@ -28,6 +37,7 @@ decl_event!(
         PriceSet(AccountId, Hash, Balance),
         Transferred(AccountId, AccountId, Hash),
         Bought(AccountId, AccountId, Hash, Balance),
+        FeePaid(Hash, Balance),
     }
 );
 
@@ -71,6 +81,7 @@ decl_module! {
                 id: random_hash,
                 // とりあえず0に設定している
                 price: <T::Balance as As<u64>>::sa(0),
+                stored_fee: <T::Balance as As<u64>>::sa(0),
             };
 
             <Nonce<T>>::mutate(|n| *n += 1);
@@ -137,6 +148,25 @@ decl_module! {
             <Cars<T>>::insert(car_id, car);
 
             Self::deposit_event(RawEvent::Bought(sender, owner, car_id, car_price));
+
+            Ok(())
+        }
+
+        /// 指定したIDの車に対して料金の支払いを行います。
+        fn pay_fee_of(origin, car_id: T::Hash, amount: T::Balance) -> Result {
+            let sender = ensure_signed(origin)?;
+
+            ensure!(<Cars<T>>::exists(car_id), "This car does not exist");
+
+            let mut car = Self::car(car_id);
+
+            let old_stored_fee = car.stored_fee;
+            car.stored_fee = car.stored_fee + amount;
+            
+            <Cars<T>>::insert(car_id, car);
+            Self::deposit_event(RawEvent::FeePaid(car_id, amount));
+
+            // TODO: 現状ではただ単にstore内のBalanceが増えているだけなので実際に支払いを行えるようにする必要がある。
 
             Ok(())
         }

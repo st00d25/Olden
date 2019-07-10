@@ -56,6 +56,7 @@ pub type BlockNumber = u64;
 pub type Nonce = u64;
 
 mod chargemanagement;
+mod olden;
 
 /// Used for the module template in `./template.rs`
 mod template;
@@ -189,8 +190,14 @@ impl sudo::Trait for Runtime {
 	type Proposal = Call;
 }
 
+// 個別定義
 impl chargemanagement::Trait for Runtime{
 	type Event = Event;
+}
+
+impl olden::Trait for Runtime {
+	type Event = Event;
+	// add code here
 }
 
 /// Used for the module template in `./template.rs`
@@ -214,6 +221,7 @@ construct_runtime!(
 		// Used for the module template in `./template.rs`
 		TemplateModule: template::{Module, Call, Storage, Event<T>},
 		ChargeManagement: chargemanagement::{Module, Call, Storage, Event<T>},
+		Olden: olden::{Module, Call, Storage, Event<T>},
 	}
 );
 
