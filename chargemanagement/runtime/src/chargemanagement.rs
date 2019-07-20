@@ -3,6 +3,7 @@ use system::ensure_signed;
 use runtime_primitives::traits::{As, Hash, Zero};
 use parity_codec::{Encode, Decode};
 use rstd::cmp;
+use balances;
 
 #[derive(Encode, Decode, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "std", derive(Debug))]
@@ -38,6 +39,7 @@ decl_event!(
         Transferred(AccountId, AccountId, Hash),
         Bought(AccountId, AccountId, Hash, Balance),
         FeePaid(Hash, Balance),
+        FeeFlushed(Hash),
     }
 );
 
@@ -64,9 +66,8 @@ decl_storage! {
 
 decl_module! {
     pub struct Module<T: Trait> for enum Call where origin: T::Origin {
-
+        
         fn deposit_event<T>() = default;
-
        // 車の生成
         fn create_car(origin) -> Result {
             let sender = ensure_signed(origin)?;
@@ -156,6 +157,7 @@ decl_module! {
         fn pay_fee_of(origin, car_id: T::Hash, amount: T::Balance) -> Result {
             let sender = ensure_signed(origin)?;
 
+            // バリデート
             ensure!(<Cars<T>>::exists(car_id), "This car does not exist");
 
             let mut car = Self::car(car_id);
@@ -167,6 +169,28 @@ decl_module! {
             Self::deposit_event(RawEvent::FeePaid(car_id, amount));
 
             // TODO: 現状ではただ単にstore内のBalanceが増えているだけなので実際に支払いを行えるようにする必要がある。
+
+            Ok(())
+        }
+
+        /// 車に蓄えられた料金を精算します。車の持ち主に返金を行っています。
+        fn flush_stored_balance(origin, car_id: T::Hash) -> Result {
+            let sender = ensure_signed(origin)?;
+
+            // バリデート
+            ensure!(<Cars<T>>::exists(car_id), "This car does not exist");
+            let owner = Self::owner_of(car_id).ok_or("No owner for this car")?;
+
+            let mut car = Self::car(car_id);
+
+            // これで持ち主に対して分配を行っている。
+            // TODO: 持ち主に返金しているので分配方法を考える。
+            <balances::Module<T>>::deposit_into_existing(&sender, car.stored_fee);
+            
+            car.stored_fee = <T::Balance as As<u64>>::sa(0);
+            <Cars<T>>::insert(car_id, car);
+
+            Self::deposit_event(RawEvent::FeeFlushed(car_id));
 
             Ok(())
         }
