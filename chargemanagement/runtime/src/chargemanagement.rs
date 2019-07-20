@@ -154,15 +154,15 @@ decl_module! {
             Ok(())
         }
 
-        /// 指定したIDの車に対して料金の支払いを行います。
+        /// 指定したIDの車に対して料金の支払いを行います。所持しているバランスが足りない場合は実行できません。
         fn pay_fee_of(origin, car_id: T::Hash, amount: T::Balance) -> Result {
             let sender = ensure_signed(origin)?;
 
             // バリデート
             ensure!(<Cars<T>>::exists(car_id), "This car does not exist");
-            // TODO: バランスが足りているかを確認する
-            // ensure!(<total_balance(&sender) >= amount, "You don't have enough token balance");
+            ensure!(<balances::Module<T> as Currency<_>>::can_slash(&sender, amount), "You don't have enough token balance");
 
+            // 指定したIDの車の貯蔵バランスを増やす
             let mut car = Self::car(car_id);
 
             let old_stored_fee = car.stored_fee;
@@ -171,9 +171,8 @@ decl_module! {
             <Cars<T>>::insert(car_id, car);
             Self::deposit_event(RawEvent::FeePaid(car_id, amount));
 
-            // 支払いを行う
+            // 実行者のバランスを減らす
             <balances::Module<T>>::slash(&sender, amount);
-
             
             Ok(())
         }
@@ -188,10 +187,11 @@ decl_module! {
 
             let mut car = Self::car(car_id);
 
-            // これで持ち主に対して分配を行っている。
-            // TODO: 持ち主に返金しているので分配方法を考える。
+            // これで持ち主に対して分配を行っている
+            // TODO: 持ち主に返金しているので分配方法を考える
             <balances::Module<T>>::deposit_into_existing(&owner, car.stored_fee);
             
+            // 車の貯蔵バランスを0にする
             car.stored_fee = <T::Balance as As<u64>>::sa(0);
             <Cars<T>>::insert(car_id, car);
 
