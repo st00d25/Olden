@@ -1,4 +1,5 @@
-use support::{decl_storage, decl_module, StorageValue, StorageMap, dispatch::Result, ensure, decl_event, traits::Currency};
+use support::{decl_storage, decl_module, StorageValue, StorageMap, dispatch::Result,
+              ensure, decl_event, traits::Currency};
 use system::ensure_signed;
 use runtime_primitives::traits::{As, Hash, Zero};
 use parity_codec::{Encode, Decode};
@@ -159,6 +160,8 @@ decl_module! {
 
             // バリデート
             ensure!(<Cars<T>>::exists(car_id), "This car does not exist");
+            // TODO: バランスが足りているかを確認する
+            // ensure!(<total_balance(&sender) >= amount, "You don't have enough token balance");
 
             let mut car = Self::car(car_id);
 
@@ -168,8 +171,10 @@ decl_module! {
             <Cars<T>>::insert(car_id, car);
             Self::deposit_event(RawEvent::FeePaid(car_id, amount));
 
-            // TODO: 現状ではただ単にstore内のBalanceが増えているだけなので実際に支払いを行えるようにする必要がある。
+            // 支払いを行う
+            <balances::Module<T>>::slash(&sender, amount);
 
+            
             Ok(())
         }
 
@@ -185,7 +190,7 @@ decl_module! {
 
             // これで持ち主に対して分配を行っている。
             // TODO: 持ち主に返金しているので分配方法を考える。
-            <balances::Module<T>>::deposit_into_existing(&sender, car.stored_fee);
+            <balances::Module<T>>::deposit_into_existing(&owner, car.stored_fee);
             
             car.stored_fee = <T::Balance as As<u64>>::sa(0);
             <Cars<T>>::insert(car_id, car);
